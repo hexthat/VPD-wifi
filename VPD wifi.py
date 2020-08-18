@@ -144,7 +144,6 @@ def sendsens(feed, whatz):
         print("Posting", feed, "...", end='')
         data = whatz
         payload = {'value': data}
-        esp32_cs.value = True
         response = wifi.post(
             "https://io.adafruit.com/api/v2/"+secrets['aio_username']+"/feeds/"+feed+"/data",
             json=payload,
@@ -155,7 +154,6 @@ def sendsens(feed, whatz):
     except (ValueError, RuntimeError) as e:
         print("Failed to get data, retrying\n", e)
         wifi.reset()
-    esp32_cs.value = False
     response = None
 
 def secondsToText(secs):
@@ -205,12 +203,12 @@ while True:
     except (ValueError, RuntimeError) as e:
         print("Failed to get data, retrying\n", e)
         wifi.reset()
-    esp32_cs.value = False
     sendsens('vpd', (vpd(currenttemp, currentrd)))
     sendsens('humidity', currentrd)
     sendsens('temp', (currenttemp * 1.8 + 32))
     sendsens('hi', HI)
     ntp.set_time()
+    esp32_cs.value = False
     print("Sleep 3mins\n")
     time.sleep(180)
     print(gc.mem_free())
