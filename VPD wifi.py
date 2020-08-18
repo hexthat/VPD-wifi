@@ -210,6 +210,7 @@ while True:
     sendsens('humidity', currentrd)
     sendsens('temp', (currenttemp * 1.8 + 32))
     sendsens('hi', HI)
+    ntp.set_time()
     print("Sleep 3mins\n")
     time.sleep(180)
     print(gc.mem_free())
