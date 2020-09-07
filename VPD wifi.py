@@ -24,7 +24,7 @@ power = DigitalInOut(board.D7)
 power.direction = Direction.OUTPUT
 ground.value = False
 power.value = True
-time.sleep(2)
+time.sleep(5)
 
 print("DotStar & I2C ground and power set")
 
@@ -44,6 +44,9 @@ esp32_ready = DigitalInOut(board.D11)
 spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
 
 esp = adafruit_esp32spi.ESP_SPIcontrol(spi, esp32_cs, esp32_ready, esp32_reset)
+
+esp32_cs.value = True
+time.sleep(5)
 
 RED_LED = PWMOut.PWMOut(esp, 26)
 GREEN_LED = PWMOut.PWMOut(esp, 27)
@@ -144,6 +147,7 @@ def sendsens(feed, whatz):
         print("Posting", feed, "...", end='')
         data = whatz
         payload = {'value': data}
+        time.sleep(3)
         response = wifi.post(
             "https://io.adafruit.com/api/v2/"+secrets['aio_username']+"/feeds/"+feed+"/data",
             json=payload,
@@ -172,6 +176,8 @@ print(gc.mem_free())
 
 
 while True:
+    power.value = True
+    time.sleep(5)
     current_time = time.time()
     ran_time = current_time - start_time
     print("Program running for: {}".format(secondsToText(ran_time)))
@@ -187,14 +193,14 @@ while True:
     # and all heat indices below 150 °F (66 °C)
     T = round((currenttemp * 1.8 + 32), 1)
     RH = round((currentrd), 1)
-    if T > 70:
+    if T > 76:
         HI = -42.379 + (2.04901523 * T) + (10.14333127 * RH) - (0.22475541 * T * RH) - (0.00683783 * T * T) - (0.05481717 * RH * RH) + (0.00122874 * T * T * RH) + (0.00085282 * T * RH * RH) - (0.00000199 * T * T * RH * RH)
         print('HI high: ',HI)
     else:
         HI = heatindexlow(currenttemp, currentrd)
+    power.value = False
     # Get data from 'digital' feed
     print('getting data from IO...')
-    esp32_cs.value = True
     try:
         feed_data = io.receive_data(digital_feed['key'])
         color = feed_data['value']
@@ -203,13 +209,27 @@ while True:
     except (ValueError, RuntimeError) as e:
         print("Failed to get data, retrying\n", e)
         wifi.reset()
+    time.sleep(50)
+    esp32_cs.value = True
     sendsens('vpd', (vpd(currenttemp, currentrd)))
-    sendsens('humidity', currentrd)
-    sendsens('temp', (currenttemp * 1.8 + 32))
-    sendsens('hi', HI)
-    ntp.set_time()
     esp32_cs.value = False
-    print("Sleep 3mins\n")
-    time.sleep(180)
+    time.sleep(50)
+    esp32_cs.value = True
+    sendsens('humidity', currentrd)
+    esp32_cs.value = False
+    time.sleep(50)
+    esp32_cs.value = True
+    sendsens('temp', (currenttemp * 1.8 + 32))
+    esp32_cs.value = False
+    time.sleep(50)
+    esp32_cs.value = True
+    sendsens('hi', HI)
+    try:
+        ntp = NTP(esp)
+        ntp.set_time()
+    except (ValueError, RuntimeError) as e:
+        print("Failed to set time\n", e)
+        wifi.reset()
+    esp32_cs.value = False
     print(gc.mem_free())
     gc.collect()
