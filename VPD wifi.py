@@ -10,7 +10,7 @@ from adafruit_io.adafruit_io import IO_HTTP, AdafruitIO_RequestError
 import adafruit_rgbled
 from adafruit_esp32spi import PWMOut
 from adafruit_ntp import NTP
-import adafruit_si7021
+import adafruit_sht31d
 import math
 import gc
 
@@ -37,6 +37,7 @@ except ImportError:
 
 print("Added secrets")
 
+# Set ESP32 pins
 esp32_cs = DigitalInOut(board.D13)
 esp32_reset = DigitalInOut(board.D12)
 esp32_ready = DigitalInOut(board.D11)
@@ -55,10 +56,14 @@ airlift_light = adafruit_rgbled.RGBLED(RED_LED, BLUE_LED, GREEN_LED)
 
 wifi = adafruit_esp32spi_wifimanager.ESPSPI_WiFiManager(esp, secrets, dot)
 
+# Setup Sensor
 i2c = board.I2C()
 
-sensor = adafruit_si7021.SI7021(i2c)
+sensor = adafruit_sht31d.SHT31D(i2c)
+sensor.frequency = adafruit_sht31d.FREQUENCY_1
+sensor.mode = adafruit_sht31d.MODE_PERIODIC
 
+# Setup Adafruit IO
 io = IO_HTTP(secrets['aio_username'], secrets['aio_key'], wifi)
 
 print("i2c, SPI, In Out Made")
@@ -70,6 +75,7 @@ except AdafruitIO_RequestError:
     # If no 'digital' feed exists, create one
     digital_feed = io.create_new_feed('led-dot')
 try:
+    # get time from wifi
     ntp = NTP(esp)
     ntp.set_time()
     start_time = time.time()
@@ -142,6 +148,7 @@ def heatindexlow(temp, rh):
     HI = (heatindex1 + heatindex2 + heatindex3) / 3
     return HI
 
+# Send data with ESP32 over wifi to adafruit io
 def sendsens(feed, whatz):
     try:
         print("Posting", feed, "...", end='')
@@ -160,6 +167,7 @@ def sendsens(feed, whatz):
         wifi.reset()
     response = None
 
+# convert seconds to time
 def secondsToText(secs):
     days = secs//86400
     hours = (secs - days*86400)//3600
@@ -171,26 +179,32 @@ def secondsToText(secs):
         ("{0} second{1} ".format(seconds, "s" if seconds != 1 else "") if seconds else "")
     return result
 
+# heat up SHT3X
+def heatsensor():
+    sensor.heater = True
+    print("Sensor Heater status =", sensor.heater)
+    time.sleep(2)
+    sensor.heater = False
+    print("Sensor Heater status =", sensor.heater)
+
 gc.collect()
 print(gc.mem_free())
+heatsensor()
+time.sleep(6)
 
 
 while True:
-    power.value = True
-    time.sleep(5)
     current_time = time.time()
     ran_time = current_time - start_time
     print("Program running for: {}".format(secondsToText(ran_time)))
-    currenttemp = sensor.temperature
-    currentrd = sensor.relative_humidity
+    currenttemp = sum(sensor.temperature) / 8
+    time.sleep(10)
+    currentrd = sum(sensor.relative_humidity) / 8
     print("\nTemp: ", str(round((currenttemp * 1.8 + 32), 1)), "F")
     print("Humidity: %0.1f %%" % currentrd)
     print("VPD: ", vpd(currenttemp, currentrd))
     print("NEWVPD: ", newvpd(currenttemp, currentrd))
-    # An alternative set of constants for this equation that is within
-    # ±3 °F (1.7 °C) of the NWS master table for all humidities from
-    # 0 to 80% and all temperatures between 70 and 115 °F (21–46 °C)
-    # and all heat indices below 150 °F (66 °C)
+    # For Feels Like Temp
     T = round((currenttemp * 1.8 + 32), 1)
     RH = round((currentrd), 1)
     if T > 76:
@@ -198,8 +212,7 @@ while True:
         print('HI high: ',HI)
     else:
         HI = heatindexlow(currenttemp, currentrd)
-    power.value = False
-    # Get data from 'digital' feed
+    # Get data from 'digital' feed for color of LED
     print('getting data from IO...')
     try:
         feed_data = io.receive_data(digital_feed['key'])
@@ -210,6 +223,7 @@ while True:
         print("Failed to get data, retrying\n", e)
         wifi.reset()
     time.sleep(50)
+    # Send data to Adafruit IO
     esp32_cs.value = True
     sendsens('vpd', (vpd(currenttemp, currentrd)))
     esp32_cs.value = False
@@ -217,6 +231,7 @@ while True:
     esp32_cs.value = True
     sendsens('humidity', currentrd)
     esp32_cs.value = False
+    heatsensor()
     time.sleep(50)
     esp32_cs.value = True
     sendsens('temp', (currenttemp * 1.8 + 32))
@@ -224,6 +239,7 @@ while True:
     time.sleep(50)
     esp32_cs.value = True
     sendsens('hi', HI)
+    # update time
     try:
         ntp = NTP(esp)
         ntp.set_time()
@@ -231,5 +247,6 @@ while True:
         print("Failed to set time\n", e)
         wifi.reset()
     esp32_cs.value = False
+    # keep memory clean
     print(gc.mem_free())
     gc.collect()
