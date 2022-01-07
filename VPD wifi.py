@@ -62,6 +62,11 @@ i2c = board.I2C()
 sensor = adafruit_sht31d.SHT31D(i2c)
 sensor.frequency = adafruit_sht31d.FREQUENCY_1
 sensor.mode = adafruit_sht31d.MODE_PERIODIC
+sensor.heater = True
+print("Sensor Heater status =", sensor.heater)
+time.sleep(1)
+sensor.heater = False
+print("Sensor Heater status =", sensor.heater)
 
 # Setup Adafruit IO
 io = IO_HTTP(secrets['aio_username'], secrets['aio_key'], wifi)
@@ -84,6 +89,7 @@ except (ValueError, RuntimeError) as e:
     wifi.reset()
 esp32_cs.value = False
 print("wifi tested")
+
 # calculate current Vapour-pressure deficit
 def vpd(temp, rh):
     # Estimated Saturation Pressures
@@ -116,7 +122,7 @@ def newvpd(temp, rh):
         VPD = es - ea
         return VPD
     else:
-        print("Humidity out of range 80 <> 20, RH:", rh)
+        vpd(temp, rh)
 
 def heatindexlow(temp, hum):
     # heat-index formulas with temperatures lower than 25*C/77 Fahrenheit.
@@ -178,18 +184,10 @@ def secondsToText(secs):
     return result
 
 # heat up SHT3X
-def heatsensor():
-    sensor.heater = True
-    print("Sensor Heater status =", sensor.heater)
-    time.sleep(2)
-    sensor.heater = False
-    print("Sensor Heater status =", sensor.heater)
+
 
 gc.collect()
 print(gc.mem_free())
-heatsensor()
-time.sleep(6)
-
 
 while True:
     current_time = time.time()
@@ -200,8 +198,7 @@ while True:
     currentrd = sum(sensor.relative_humidity) / 8
     print("\nTemp: ", str(round((currenttemp * 1.8 + 32), 1)), "F")
     print("Humidity: %0.1f %%" % currentrd)
-    print("VPD: ", vpd(currenttemp, currentrd))
-    print("NEWVPD: ", newvpd(currenttemp, currentrd))
+    print("VPD: ", newvpd(currenttemp, currentrd))
     # For Feels Like Temp
     T = round((currenttemp * 1.8 + 32), 1)
     RH = round((currentrd), 1)
@@ -231,7 +228,6 @@ while True:
     esp32_cs.value = True
     sendsens('humidity', currentrd)
     esp32_cs.value = False
-    heatsensor()
     time.sleep(50)
     esp32_cs.value = True
     sendsens('temp', (currenttemp * 1.8 + 32))
