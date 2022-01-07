@@ -118,10 +118,8 @@ def newvpd(temp, rh):
     else:
         print("Humidity out of range 80 <> 20, RH:", rh)
 
-def heatindexlow(temp, rh):
+def heatindexlow(temp, hum):
     # heat-index formulas with temperatures lower than 25*C/77 Fahrenheit.
-    temp = currenttemp
-    hum = currentrd
     # Convert celius to fahrenheit (heat-index is only fahrenheit compatible)
     fahrenheit = ((temp * 9/5) + 32)
 
