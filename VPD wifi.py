@@ -205,11 +205,13 @@ while True:
     # For Feels Like Temp
     T = round((currenttemp * 1.8 + 32), 1)
     RH = round((currentrd), 1)
-    if T > 76:
-        HI = -42.379 + (2.04901523 * T) + (10.14333127 * RH) - (0.22475541 * T * RH) - (0.00683783 * T * T) - (0.05481717 * RH * RH) + (0.00122874 * T * T * RH) + (0.00085282 * T * RH * RH) - (0.00000199 * T * T * RH * RH)
-        print('HI high: ',HI)
-    else:
+    if T >= 76:
         HI = heatindexlow(currenttemp, currentrd)
+        print('HI high: ',HI)
+    elif T < 76 and T > 50:
+        HI = T
+    else:
+        HI = 35.74 + (0.6215 * T) - (35.75 * 0.48) + (0.425 * T * 0.48)
     # Get data from 'digital' feed for color of LED
     print('getting data from IO...')
     try:
