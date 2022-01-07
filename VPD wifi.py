@@ -211,7 +211,7 @@ while True:
     elif T < 76 and T > 50:
         HI = T
     else:
-        HI = 13.12 + 0.6215 * currenttemp - 11.37 * math.pow(3, 0.16) + 0.3965 * currenttemp * math.pow(3, 0.16)
+        HI = round(((13.12 + 0.6215 * currenttemp - 11.37 * math.pow(3, 0.16) + 0.3965 * currenttemp * math.pow(3, 0.16)) * 1.8 + 32))
     # Get data from 'digital' feed for color of LED
     print('getting data from IO...')
     try:
