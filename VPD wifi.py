@@ -323,6 +323,7 @@ while True:
     sendsens("temp", (currenttemp * 1.8 + 32))
     sendsens("hi", feelslike)
     # update time
+    esp32_cs.value = True
     try:
         ntp = NTP(esp)
         ntp.set_time()
